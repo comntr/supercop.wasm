@@ -4,31 +4,60 @@
  * @author  Nazar Mokrynskyi <nazar@mokrynskyi.com>
  * @license 0BSD
  */
-(function(){
-  var exec, glob, gulp, rename, uglify;
-  exec = require('child_process').exec;
-  glob = require('glob');
-  gulp = require('gulp');
-  rename = require('gulp-rename');
-  uglify = require('gulp-uglify');
-  gulp.task('build', ['wasm', 'minify']).task('wasm', function(callback){
-    var files, functions, optimize, command;
-    files = glob.sync('vendor/src/*.c').join(' ');
-    functions = JSON.stringify(['_malloc', '_free', '_ed25519_create_keypair', '_ed25519_sign', '_ed25519_verify']);
-    optimize = "-Oz --llvm-lto 1 --closure 1 -s NO_EXIT_RUNTIME=1 -s NO_FILESYSTEM=1 -s EXPORTED_RUNTIME_METHODS=[] -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=[]";
-    command = "emcc src/supercop.c " + files + " --post-js src/bytes_allocation.js -o src/supercop.js -s MODULARIZE=1 -s 'EXPORT_NAME=\"__supercopwasm\"' -s EXPORTED_FUNCTIONS='" + functions + "' -s WASM=1 " + optimize;
-    exec(command, function(error, stdout, stderr){
-      if (stdout) {
-        console.log(stdout);
-      }
-      if (stderr) {
-        console.error(stderr);
-      }
-      callback(error);
-    });
-  }).task('minify', function(){
-    return gulp.src("src/index.js").pipe(uglify()).pipe(rename({
-      suffix: '.min'
-    })).pipe(gulp.dest('src'));
+
+var exec = require('child_process').exec;
+var glob = require('glob');
+var gulp = require('gulp');
+var rename = require('gulp-rename');
+var uglify = require('gulp-uglify');
+
+gulp.task('wasm', function (callback) {
+  var files = glob.sync('vendor/src/*.c').join(' ');
+
+  var functions = JSON.stringify([
+    '_malloc',
+    '_free',
+    '_ed25519_create_keypair',
+    '_ed25519_sign',
+    '_ed25519_verify',
+  ]).replace(/"/g, "'");
+
+  var optimize = [
+    '-Oz',
+    '-s NO_EXIT_RUNTIME=1',
+    '-s NO_FILESYSTEM=1',
+    '-s EXPORTED_RUNTIME_METHODS=[]',
+    '-s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=[]',
+  ].join(' ');
+
+  var command = [
+    'emcc',
+    'src/supercop.c',
+    files,
+    '--post-js src/bytes_allocation.js',
+    '-o src/supercop.js',
+    '-s MODULARIZE=1',
+    '-s EXPORT_NAME="\'__supercopwasm\'"',
+    '-s "EXPORTED_FUNCTIONS=' + functions + '"',
+    '-s WASM=1',
+    optimize,
+  ].join(' ');
+
+  console.log(command);
+
+  exec(command, function (error, stdout, stderr) {
+    if (stdout) {
+      console.log(stdout);
+    }
+    if (stderr) {
+      console.error(stderr);
+    }
+    callback(error);
   });
-}).call(this);
+});
+gulp.task('minify', function () {
+  return gulp.src("src/index.js").pipe(uglify()).pipe(rename({
+    suffix: '.min'
+  })).pipe(gulp.dest('src'));
+});
+gulp.task('build', gulp.series('wasm', 'minify'));
